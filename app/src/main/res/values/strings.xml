@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">iPod 播放器 3.0</string>
+    <string name="menu">MENU</string>
+    <string name="play_pause">播放/暂停</string>
+    <string name="next">下一首</string>
+    <string name="previous">上一首</string>
+    <string name="now_playing">正在播放</string>
+</resources>
