@@ -1,0 +1,504 @@
+<!-- AI生成 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Cover Flow 优化预览</title>
+<style>
+  :root {
+    --bg: #07070a;
+    --ink: #f5f5f7;
+    --muted: #98989d;
+    --accent: #0a84ff;
+    --card: #121218;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
+    background:
+      radial-gradient(900px 480px at 50% -10%, #1a2438 0%, var(--bg) 55%),
+      var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 18px 14px 40px;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 1.25rem; font-weight: 650; }
+  .sub { color: var(--muted); font-size: 0.86rem; margin: 6px 0 14px; }
+
+  .phone {
+    background: linear-gradient(165deg, #2c2c32, #17171c);
+    border-radius: 32px;
+    padding: 12px 10px 16px;
+    box-shadow: 0 28px 70px rgba(0,0,0,.55);
+  }
+  .lcd {
+    background: #050506;
+    border-radius: 12px;
+    height: 320px;
+    position: relative;
+    overflow: hidden;
+    user-select: none;
+    touch-action: pan-y;
+    cursor: grab;
+  }
+  .lcd:active { cursor: grabbing; }
+  .caption {
+    position: absolute;
+    left: 0; right: 0; bottom: 10px;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255,255,255,.88);
+    text-shadow: 0 2px 8px rgba(0,0,0,.6);
+    z-index: 5;
+    pointer-events: none;
+    transition: opacity .2s ease;
+  }
+  .cover-wrap {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cover {
+    position: absolute;
+    width: 148px;
+    height: 148px;
+    border-radius: 8px;
+    background-size: cover;
+    background-position: center;
+    will-change: transform, opacity;
+    transform-style: preserve-3d;
+    box-shadow: 0 18px 40px rgba(0,0,0,.45);
+  }
+  .cover.front {
+    /* reflection strip */
+  }
+  .refl {
+    position: absolute;
+    top: 100%;
+    left: 0; right: 0;
+    height: 42%;
+    background-size: cover;
+    background-position: top center;
+    transform: scaleY(-1);
+    opacity: 0.28;
+    border-radius: 0 0 8px 8px;
+    -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,.55), transparent);
+    mask-image: linear-gradient(to bottom, rgba(0,0,0,.55), transparent);
+    pointer-events: none;
+  }
+
+  .wheel-zone {
+    display: flex;
+    justify-content: center;
+    padding: 18px 0 6px;
+  }
+  .wheel {
+    width: 168px; height: 168px;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 50% 42%, #c8c8ce, #b0b0b8 58%, #9a9aa2 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.5),
+      0 10px 24px rgba(0,0,0,.35);
+    position: relative;
+  }
+  .wheel .hub {
+    position: absolute;
+    inset: 32%;
+    border-radius: 50%;
+    background: linear-gradient(160deg, #d4d4da, #b8b8c0);
+    box-shadow: inset 0 1px 2px rgba(255,255,255,.5);
+  }
+  .wheel span {
+    position: absolute;
+    font-size: 11px;
+    font-weight: 700;
+    color: #6e6e73;
+    letter-spacing: 0.04em;
+  }
+  .wheel .t { top: 10px; left: 50%; transform: translateX(-50%); }
+  .wheel .b { bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 10px; }
+  .wheel .l { left: 10px; top: 50%; transform: translateY(-50%); }
+  .wheel .r { right: 10px; top: 50%; transform: translateY(-50%); }
+
+  .controls {
+    margin-top: 16px;
+    display: grid;
+    gap: 12px;
+    background: var(--card);
+    border: 1px solid #26262e;
+    border-radius: 18px;
+    padding: 14px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 72px 1fr 42px;
+    gap: 10px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .row strong { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+  button {
+    border: 1px solid #2c2c36;
+    background: #1b1b22;
+    color: var(--ink);
+    border-radius: 999px;
+    padding: 9px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: transform .12s ease, background .2s ease;
+  }
+  button:active { transform: scale(0.96); }
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  .meta {
+    margin-top: 16px;
+    display: grid;
+    gap: 10px;
+  }
+  .meta article {
+    background: var(--card);
+    border: 1px solid #26262e;
+    border-radius: 16px;
+    padding: 12px 14px;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .meta b { color: var(--ink); }
+  code {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 0.75rem;
+    background: #22222a;
+    color: #9ecbff;
+    padding: 1px 5px;
+    border-radius: 5px;
+  }
+  .tip {
+    margin-top: 10px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<p data-aigc-mark="1" style="margin:0 0 8px;font-size:10px;line-height:1.3;color:#6b6560;font-weight:400;">AI生成</p>
+
+<div class="wrap">
+  <h1>Cover Flow 优化预览</h1>
+  <p class="sub">对标 RecyclerCoverFlow / expo-coverflow · 可拖、可甩、点侧封面弹到中心。参数可调，满意后我再写进 Android。</p>
+
+  <div class="phone">
+    <div class="lcd" id="lcd">
+      <div class="cover-wrap" id="stack"></div>
+      <div class="caption" id="cap">—</div>
+    </div>
+    <div class="wheel-zone">
+      <div class="wheel" id="wheel" title="点击左右/上下也可翻页">
+        <div class="hub"></div>
+        <span class="t">MENU</span>
+        <span class="b">▶❙❙</span>
+        <span class="l">⏮</span>
+        <span class="r">⏭</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="row">
+      <span>旋转</span>
+      <input type="range" id="rot" min="20" max="70" value="52" />
+      <strong id="rotV">52°</strong>
+    </div>
+    <div class="row">
+      <span>间距</span>
+      <input type="range" id="gap" min="90" max="170" value="132" />
+      <strong id="gapV">132</strong>
+    </div>
+    <div class="row">
+      <span>中心缩放</span>
+      <input type="range" id="sc" min="100" max="125" value="112" />
+      <strong id="scV">1.12</strong>
+    </div>
+    <div class="row">
+      <span>倒影</span>
+      <input type="range" id="rf" min="0" max="50" value="28" />
+      <strong id="rfV">28%</strong>
+    </div>
+    <div class="btns">
+      <button class="primary" id="btnPlan">按方案预设</button>
+      <button id="btnFling">模拟甩动</button>
+      <button id="btnReset">居中第 1 张</button>
+    </div>
+  </div>
+
+  <div class="meta">
+    <article>
+      <b>透视</b> · 旋转角随距离 <code>cos</code> 缓动，远处更平；中心略大、两侧叠压（参考 RecyclerCoverFlow）。
+    </article>
+    <article>
+      <b>倒影</b> · 上 1/3 镜像 + 线性渐隐（参考 tuo/CoverFlow · expo-coverflow）。
+    </article>
+    <article>
+      <b>手感</b> · 跟手拖动 + 速度惯性吸附；<b>点侧封面</b>弹簧到中心（参考 expo-coverflow）。
+    </article>
+    <article>
+      <b>圆盘</b> · 四向点击 = 上一张/下一张/菜单/播放（预览用）。
+    </article>
+  </div>
+
+  <p class="tip">建议在手机浏览器里横滑封面试试甩动手感 → 觉得 OK 再让我改进 Compose 版。</p>
+</div>
+
+<script>
+(function () {
+  const albums = [
+    { t: "Night Drive", c: ["#1b2a4a", "#0b3d91"], g: "ND" },
+    { t: "春日纪", c: ["#3d7a6a", "#1f4a40"], g: "春" },
+    { t: "Neon Alley", c: ["#5a2a7a", "#2b0f45"], g: "NA" },
+    { t: "Sunset Tape", c: ["#c45c26", "#7a2e12"], g: "ST" },
+    { t: "银河手帖", c: ["#2a3a5c", "#121a33"], g: "银" },
+    { t: "Quiet Rain", c: ["#3a5a6a", "#1c2e38"], g: "QR" },
+    { t: "U2 Red", c: ["#c41e3a", "#5c0d1a"], g: "U2" },
+    { t: "Mono Club", c: ["#4a4a52", "#1c1c22"], g: "MC" },
+    { t: "海边电台", c: ["#2f7a8c", "#123c48"], g: "海" },
+    { t: "Afterglow", c: ["#a85c7a", "#4a2038"], g: "AG" }
+  ];
+
+  const lcd = document.getElementById("lcd");
+  const stack = document.getElementById("stack");
+  const cap = document.getElementById("cap");
+
+  // params (plan defaults)
+  const P = {
+    maxRot: 52,      // deg at far
+    gap: 132,        // px per step
+    centerScale: 1.12,
+    reflect: 0.28,
+    easePow: 0.85,   // non-linear scale
+    flingGain: 0.28,
+    spring: 0.82
+  };
+
+  let pos = 0;          // continuous index
+  let target = 0;
+  let vel = 0;
+  let dragging = false;
+  let lastX = 0;
+  let lastT = 0;
+  let raf = 0;
+  const els = [];
+
+  function bg(album) {
+    return `linear-gradient(145deg, ${album.c[0]}, ${album.c[1]})`;
+  }
+
+  function build() {
+    stack.innerHTML = "";
+    els.length = 0;
+    albums.forEach((a, i) => {
+      const el = document.createElement("div");
+      el.className = "cover";
+      el.style.backgroundImage = bg(a);
+      el.dataset.i = String(i);
+      el.innerHTML =
+        `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:700;color:rgba(255,255,255,.88);text-shadow:0 2px 8px rgba(0,0,0,.35)">${a.g}</div>` +
+        `<div class="refl" style="background-image:${bg(a)};opacity:${P.reflect}"></div>`;
+      el.addEventListener("click", (e) => {
+        if (dragging) return;
+        const dx = Math.abs(i - pos);
+        if (dx < 0.35) return;
+        target = i;
+        startAnim();
+      });
+      stack.appendChild(el);
+      els.push(el);
+    });
+  }
+
+  function layout() {
+    const w = lcd.clientWidth;
+    const h = lcd.clientHeight;
+    const cx = w / 2;
+    const cy = h / 2 - 8;
+
+    for (let i = 0; i < els.length; i++) {
+      const rel = i - pos;
+      const abs = Math.abs(rel);
+      const el = els[i];
+      if (abs > 4.2) {
+        el.style.opacity = "0";
+        el.style.pointerEvents = "none";
+        continue;
+      }
+      el.style.pointerEvents = "auto";
+
+      // non-linear: center flatten fast, far tilt more flat
+      const t = Math.min(abs, 3) / 3; // 0..1
+      const rotY = Math.sign(rel) * P.maxRot * Math.sin(t * Math.PI * 0.5);
+      const scale = P.centerScale * Math.pow(Math.max(0, 1 - abs * 0.16), P.easePow);
+      const x = rel * P.gap * (1 + 0.06 * abs);
+      const y = abs * 5;
+      const alpha = Math.max(0.12, 1 - Math.max(0, abs - 2.6) * 0.45);
+
+      el.style.transform =
+        `translate(-50%,-50%) translate3d(${x}px, ${y}px, 0) rotateY(${rotY}deg) scale(${scale})`;
+      el.style.opacity = String(alpha);
+      el.style.zIndex = String(100 - Math.round(abs * 10));
+    }
+
+    const idx = Math.round(pos);
+    const a = albums[Math.max(0, Math.min(albums.length - 1, idx))];
+    cap.textContent = a ? `${idx + 1} / ${albums.length} · ${a.t}` : "";
+  }
+
+  function startAnim() {
+    if (raf) cancelAnimationFrame(raf);
+    const step = () => {
+      if (dragging) {
+        raf = requestAnimationFrame(step);
+        return;
+      }
+      const dx = target - pos;
+      if (Math.abs(dx) < 0.001 && Math.abs(vel) < 0.001) {
+        pos = target;
+        layout();
+        raf = 0;
+        return;
+      }
+      // simple spring
+      const a = dx * 0.16;
+      vel = (vel + a) * P.spring;
+      pos += vel;
+      layout();
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+  }
+
+  // pointer drag
+  lcd.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    lastX = e.clientX;
+    lastT = performance.now();
+    vel = 0;
+    lcd.setPointerCapture(e.pointerId);
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+  });
+  lcd.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const now = performance.now();
+    const dx = e.clientX - lastX;
+    const dt = Math.max(1, now - lastT);
+    const dIndex = -dx / P.gap;
+    pos = Math.max(-0.4, Math.min(albums.length - 0.6, pos + dIndex));
+    vel = dIndex * (16 / dt) * 0.9;
+    lastX = e.clientX;
+    lastT = now;
+    layout();
+  });
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false;
+    const projected = pos + vel * P.flingGain * 12;
+    target = Math.max(0, Math.min(albums.length - 1, Math.round(projected)));
+    startAnim();
+  }
+  lcd.addEventListener("pointerup", endDrag);
+  lcd.addEventListener("pointercancel", endDrag);
+  lcd.addEventListener("pointerleave", endDrag);
+
+  // wheel buttons
+  const wheel = document.getElementById("wheel");
+  wheel.addEventListener("click", (e) => {
+    const r = wheel.getBoundingClientRect();
+    const x = e.clientX - r.left - r.width / 2;
+    const y = e.clientY - r.top - r.height / 2;
+    const dist = Math.hypot(x, y);
+    if (dist < r.width * 0.22) {
+      // center — no-op / select
+      return;
+    }
+    const deg = (Math.atan2(y, x) * 180) / Math.PI;
+    const d = (deg + 360) % 360;
+    if (d >= 225 && d < 315) {
+      target = 0;
+    } else if (d >= 45 && d < 135) {
+      target = Math.min(albums.length - 1, Math.round(pos) + 1);
+    } else if (d >= 135 && d < 225) {
+      target = Math.max(0, Math.round(pos) - 1);
+    } else {
+      target = Math.min(albums.length - 1, Math.round(pos) + 1);
+    }
+    startAnim();
+  });
+
+  // sliders
+  function bind(id, key, fmt) {
+    const el = document.getElementById(id);
+    const label = document.getElementById(id + "V");
+    const apply = () => {
+      const v = Number(el.value);
+      P[key] = id === "sc" ? v / 100 : id === "rf" ? v / 100 : v;
+      if (id === "rf") {
+        document.querySelectorAll(".refl").forEach((n) => {
+          n.style.opacity = String(P.reflect);
+        });
+      }
+      label.textContent = fmt(v);
+      layout();
+    };
+    el.addEventListener("input", apply);
+    apply();
+  }
+  bind("rot", "maxRot", (v) => v + "°");
+  bind("gap", "gap", (v) => String(v));
+  bind("sc", "centerScale", (v) => (v / 100).toFixed(2));
+  bind("rf", "reflect", (v) => v + "%");
+
+  document.getElementById("btnPlan").addEventListener("click", () => {
+    document.getElementById("rot").value = 52;
+    document.getElementById("gap").value = 132;
+    document.getElementById("sc").value = 112;
+    document.getElementById("rf").value = 28;
+    ["rot", "gap", "sc", "rf"].forEach((id) =>
+      document.getElementById(id).dispatchEvent(new Event("input"))
+    );
+  });
+  document.getElementById("btnFling").addEventListener("click", () => {
+    vel = 0.22;
+    target = Math.min(albums.length - 1, Math.round(pos) + 3);
+    startAnim();
+  });
+  document.getElementById("btnReset").addEventListener("click", () => {
+    target = 0;
+    startAnim();
+  });
+
+  window.addEventListener("resize", layout);
+  build();
+  target = 0;
+  pos = 0;
+  layout();
+  startAnim();
+})();
+</script>
+</body>
+</html>

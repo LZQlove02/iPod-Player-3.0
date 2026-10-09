@@ -21,8 +21,25 @@ class SettingsRepository(private val context: Context) {
     private val vibrateKey = booleanPreferencesKey("vibrate")
     private val eqEnabledKey = booleanPreferencesKey("eq_enabled")
     private val eqPresetKey = stringPreferencesKey("eq_preset")
-    private val bassKey = stringPreferencesKey("bass")
-    private val trebleKey = stringPreferencesKey("treble")
+    private val eqBandsKey = stringPreferencesKey("eq_bands")
+    private val transitionKey = stringPreferencesKey("transition")
+    private val lyricsDirKey = stringPreferencesKey("lyrics_dir")
+    private val shuffleKey = booleanPreferencesKey("shuffle")
+    private val repeatKey = stringPreferencesKey("repeat")
+
+    /** Persisted SAF tree URI for the user-picked lyrics folder, or empty. */
+    val lyricsDirUri: Flow<String> = context.dataStore.data.map { it[lyricsDirKey] ?: "" }
+
+    suspend fun setLyricsDirUri(uri: String) {
+        context.dataStore.edit { it[lyricsDirKey] = uri }
+    }
+
+    /** A = fade, B = slide (default), C = container transform */
+    val transitionMode: Flow<String> = context.dataStore.data.map { it[transitionKey] ?: "B" }
+
+    suspend fun setTransitionMode(mode: String) {
+        context.dataStore.edit { it[transitionKey] = mode }
+    }
 
     val language: Flow<AppLanguage> = context.dataStore.data.map {
         when (it[langKey]) {
@@ -43,9 +60,8 @@ class SettingsRepository(private val context: Context) {
         runCatching { EqPreset.valueOf(it[eqPresetKey] ?: "FLAT") }.getOrDefault(EqPreset.FLAT)
     }
 
-    val bass: Flow<Int> = context.dataStore.data.map { (it[bassKey] ?: "0").toIntOrNull() ?: 0 }
-
-    val treble: Flow<Int> = context.dataStore.data.map { (it[trebleKey] ?: "0").toIntOrNull() ?: 0 }
+    /** 10 段增益，逗号分隔（如 "3.0,1.0,0.0,..."）；空串表示从未保存过曲线。 */
+    val eqBands: Flow<String> = context.dataStore.data.map { it[eqBandsKey] ?: "" }
 
     suspend fun setLanguage(lang: AppLanguage) {
         context.dataStore.edit { it[langKey] = lang.name }
@@ -71,11 +87,21 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { it[eqPresetKey] = preset.name }
     }
 
-    suspend fun setBass(value: Int) {
-        context.dataStore.edit { it[bassKey] = value.coerceIn(-5, 5).toString() }
+    /** 保存 10 段增益曲线（Float.toString 与地区无关，可直接落盘）。 */
+    suspend fun setEqBands(gains: List<Float>) {
+        context.dataStore.edit { it[eqBandsKey] = gains.joinToString(",") }
     }
 
-    suspend fun setTreble(value: Int) {
-        context.dataStore.edit { it[trebleKey] = value.coerceIn(-5, 5).toString() }
+    val shuffle: Flow<Boolean> = context.dataStore.data.map { it[shuffleKey] ?: false }
+
+    suspend fun setShuffle(enabled: Boolean) {
+        context.dataStore.edit { it[shuffleKey] = enabled }
+    }
+
+    /** "OFF" / "ONE" / "ALL"，与 PlayerController.RepeatMode.name 对齐。 */
+    val repeatMode: Flow<String> = context.dataStore.data.map { it[repeatKey] ?: "OFF" }
+
+    suspend fun setRepeatMode(name: String) {
+        context.dataStore.edit { it[repeatKey] = name }
     }
 }

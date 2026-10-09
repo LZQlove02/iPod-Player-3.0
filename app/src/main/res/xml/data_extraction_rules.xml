@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ 备份/换机规则。SAF 歌词目录的持久化授权无法跨设备还原，
+     所以只带设置与播放列表；歌词文件本身在 SD 卡/共享存储里，不归应用管。 -->
+<data-extraction-rules>
+    <cloud-backup>
+        <include
+            domain="file"
+            path="playlists.json" />
+        <include
+            domain="file"
+            path="datastore/" />
+    </cloud-backup>
+    <device-transfer>
+        <include
+            domain="file"
+            path="playlists.json" />
+        <include
+            domain="file"
+            path="datastore/" />
+    </device-transfer>
+</data-extraction-rules>

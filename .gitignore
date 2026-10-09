@@ -5,7 +5,12 @@ build/
 .kotlin/
 local.properties
 *.iml
-.idea/
+# 共享运行配置要入库，其余 IDE 文件忽略
+.idea/*
+!.idea/runConfigurations
+!.idea/runConfigurations/**
+!.idea/codeStyles
+!.idea/codeStyles/**
 .cxx/
 captures/
 .externalNativeBuild/
@@ -13,6 +18,7 @@ captures/
 # Signing
 *.jks
 *.keystore
+keystore.properties
 
 # OS / IDE
 .DS_Store
@@ -22,3 +28,9 @@ Thumbs.db
 
 # Logs
 *.log
+
+# 解包出来的库源码 / manifest，不属于本工程源集，不入库
+/androidMain/
+/commonMain/
+/jvmMain/
+/META-INF/

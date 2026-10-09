@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 及以下的备份规则：只备份真正需要跟着用户走的本地数据 -->
+<full-backup-content>
+    <include
+        domain="file"
+        path="playlists.json" />
+    <include
+        domain="file"
+        path="datastore/" />
+</full-backup-content>

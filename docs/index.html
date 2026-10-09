@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>歌词进度动画</title>
+<style>
+  :root {
+    --bg: #050506;
+    --ink: #ffffff;
+    --dim: #6e6e73;
+    --dim-dark: #3a3a3c;
+    --accent: #0a84ff;
+    --bar-bg: #2c2c2e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+            env(safe-area-inset-bottom) env(safe-area-inset-left);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── 顶部：歌名 ── */
+  .song {
+    flex: 0 0 auto;
+    padding: 18px 20px 6px;
+    text-align: center;
+  }
+  .song-title {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── 歌词视窗：当前句居中 ── */
+  .viewport {
+    flex: 1 1 auto;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .track {
+    width: 100%;
+    will-change: transform;
+  }
+
+  /* ── 单行：双层文字 + clip-path 扫光 ──
+     暗层在下、亮层在上，亮层用 clip-path:inset 从左往右裁切。
+     clip-path 是最基础的裁剪特性，所有 WebView 都支持，
+     不依赖 mask / background-clip / brush。 */
+  .line {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px 16px;
+    position: relative;
+  }
+  .line .stack {
+    position: relative;
+    display: inline-block;
+    white-space: nowrap;
+  }
+  .line .layer {
+    font-size: 18px;
+    line-height: 1.5;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    display: block;
+  }
+  /* 暗层：始终在底层 */
+  .line .dim {
+    color: var(--dim-dark);
+    visibility: visible;
+  }
+  /* 亮层：覆盖在暗层上，用 clip-path 控制已唱比例 */
+  .line .lit {
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--ink);
+    /* 默认全遮（0% 已唱） */
+    clip-path: inset(0 100% 0 0);
+    -webkit-clip-path: inset(0 100% 0 0);
+  }
+
+  /* 已唱句：整句全亮，不走扫光 */
+  .line.sung .dim { color: var(--ink); }
+  .line.sung .lit { display: none; }
+  /* 未唱句：保持暗色 */
+  .line.future .dim { color: var(--dim-dark); }
+  .line.future .lit { display: none; }
+
+  /* 当前句略微放大 */
+  .line.active .layer {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── 底部控制 ── */
+  .controls {
+    flex: 0 0 auto;
+    padding: 12px 24px calc(16px + env(safe-area-inset-bottom));
+  }
+  .progress-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .time {
+    font-size: 10px;
+    color: var(--dim);
+    font-variant-numeric: tabular-nums;
+    min-width: 34px;
+  }
+  .time.end { text-align: right; }
+
+  .bar {
+    flex: 1 1 auto;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    touch-action: none;
+  }
+  .bar-track {
+    position: relative;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--bar-bg);
+    overflow: visible;
+  }
+  .bar-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    border-radius: 2px;
+    background: var(--accent);
+    width: 0%;
+  }
+  .bar-knob {
+    position: absolute;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--ink);
+    transform: translate(-50%, -50%);
+    left: 0%;
+    box-shadow: 0 1px 4px rgba(0,0,0,.5);
+    opacity: 0;
+    transition: opacity .15s ease;
+  }
+  .bar:hover .bar-knob,
+  .bar.dragging .bar-knob { opacity: 1; }
+
+  .play-row {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+    gap: 16px;
+    align-items: center;
+  }
+  .play-btn {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: 1.5px solid #3a3a3c;
+    background: transparent;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .play-btn:active { background: rgba(255,255,255,.06); }
+  .play-btn svg { display: block; }
+
+  /* 状态提示，便于确认动画在跑 */
+  .hint {
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.06em;
+  }
+</style>
+</head>
+<body>
+
+  <div class="song">
+    <div class="song-title" id="songTitle">夜色中的灯</div>
+  </div>
+
+  <div class="viewport" id="viewport">
+    <div class="track" id="track"></div>
+  </div>
+
+  <div class="controls">
+    <div class="progress-row">
+      <div class="time now" id="now">0:00</div>
+      <div class="bar" id="bar">
+        <div class="bar-track">
+          <div class="bar-fill" id="fill"></div>
+          <div class="bar-knob" id="knob"></div>
+        </div>
+      </div>
+      <div class="time end" id="end">0:00</div>
+    </div>
+    <div class="play-row">
+      <button class="play-btn" id="playBtn" aria-label="播放/暂停">
+        <!-- 图标由 JS 切换 -->
+      </button>
+      <div class="hint" id="hint">自动播放中</div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── 演示歌词（行级时间戳，ms） ──
+  const LINES = [
+    { t: 0,     text: '夜色慢慢落下来' },
+    { t: 2800,  text: '街灯一盏一盏亮' },
+    { t: 5600,  text: '耳机里循环着那首歌' },
+    { t: 8800,  text: '像你还在身边轻声说话' },
+    { t: 12200, text: '风穿过空荡的站台' },
+    { t: 15400, text: '带走没说出口的期待' },
+    { t: 18800, text: '如果时间能倒带' },
+    { t: 22000, text: '我想回到那个夏天' },
+    { t: 25400, text: '再看一次你眼里的光' },
+    { t: 28800, text: '夜色中的灯还亮着' },
+  ];
+  const TAIL_MS = 4000; // 末句兜底时长
+  const SONG_MS = LINES[LINES.length - 1].t + TAIL_MS;
+
+  // ── 状态 ──
+  let playing = true;   // 打开即自动播放，保证动画立即可见
+  let clock = 0;
+  let lastFrame = 0;
+  let dragging = false;
+
+  // ── DOM ──
+  const track = document.getElementById('track');
+  const viewport = document.getElementById('viewport');
+  const fill = document.getElementById('fill');
+  const knob = document.getElementById('knob');
+  const bar = document.getElementById('bar');
+  const nowEl = document.getElementById('now');
+  const endEl = document.getElementById('end');
+  const playBtn = document.getElementById('playBtn');
+  const hintEl = document.getElementById('hint');
+
+  // ── 构建歌词行 ──
+  const rows = LINES.map(function (line, i) {
+    const el = document.createElement('div');
+    el.className = 'line';
+    el.dataset.index = String(i);
+    el.innerHTML =
+      '<div class="stack">' +
+        '<span class="layer dim"></span>' +
+        '<span class="layer lit"></span>' +
+      '</div>';
+    const dim = el.querySelector('.dim');
+    const lit = el.querySelector('.lit');
+    dim.textContent = line.text;
+    lit.textContent = line.text;
+    track.appendChild(el);
+    return {
+      el: el,
+      dim: dim,
+      lit: lit,
+      start: line.t,
+      end: i < LINES.length - 1 ? LINES[i + 1].t : LINES[i].t + TAIL_MS,
+    };
+  });
+
+  // ── 工具 ──
+  function formatTime(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return m + ':' + String(r).padStart(2, '0');
+  }
+
+  // 当前行下标；句间空隙归到上一句（已唱全亮）
+  function activeIndexAt(ms) {
+    let idx = 0;
+    for (let i = 0; i < rows.length; i++) {
+      if (ms >= rows[i].start) idx = i;
+      else break;
+    }
+    return idx;
+  }
+
+  // 行内进度 0..1
+  function lineProgress(row, ms) {
+    const span = row.end - row.start;
+    if (span <= 0) return 1;
+    return Math.min(1, Math.max(0, (ms - row.start) / span));
+  }
+
+  // 设置当前句的扫光：亮层从左往右露出
+  function paintSweep(row, p) {
+    const prog = p < 0 ? 0 : p > 1 ? 1 : p;
+    // inset(top right bottom left)：right = 100% - 已唱比例
+    const right = (100 - prog * 100).toFixed(2) + '%';
+    const v = 'inset(0 ' + right + ' 0 0)';
+    row.lit.style.clipPath = v;
+    row.lit.style.webkitClipPath = v;
+  }
+
+  // ── 渲染 ──
+  let lastActive = -1;
+
+  function render() {
+    const active = activeIndexAt(clock);
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const el = row.el;
+      el.classList.remove('active', 'sung', 'future');
+
+      if (i < active) {
+        el.classList.add('sung');
+      } else if (i > active) {
+        el.classList.add('future');
+      } else {
+        el.classList.add('active');
+        paintSweep(row, lineProgress(row, clock));
+      }
+    }
+
+    // 当前句垂直居中 + 平滑滚动
+    if (active !== lastActive) {
+      scrollToActive(active);
+      lastActive = active;
+    }
+
+    // 进度条
+    const gp = SONG_MS > 0 ? Math.min(1, clock / SONG_MS) : 0;
+    fill.style.width = (gp * 100).toFixed(2) + '%';
+    knob.style.left = (gp * 100).toFixed(2) + '%';
+    nowEl.textContent = formatTime(clock);
+    endEl.textContent = formatTime(SONG_MS);
+    hintEl.textContent = playing ? '自动播放中' : '已暂停';
+  }
+
+  // 让第 index 行的中心落在视口垂直中心
+  function scrollToActive(index) {
+    const row = rows[index];
+    if (!row) return;
+    const vpH = viewport.clientHeight;
+    const lineH = row.el.offsetHeight;
+    // track 起点对齐视口中心；再把该行中心推到视口中心
+    const offset = row.el.offsetTop + lineH / 2 - vpH / 2;
+    track.style.transition = 'transform 350ms cubic-bezier(.22,.61,.36,1)';
+    track.style.transform = 'translateY(' + (-offset) + 'px)';
+  }
+
+  // ── 播放循环 ──
+  function frame(ts) {
+    if (playing && !dragging) {
+      if (lastFrame === 0) lastFrame = ts;
+      const dt = ts - lastFrame;
+      lastFrame = ts;
+      clock += dt;
+      if (clock >= SONG_MS) {
+        clock = 0;
+        lastActive = -1;
+      }
+      render();
+    } else {
+      lastFrame = 0;
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ── 播放按钮 ──
+  const ICON_PLAY =
+    '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">' +
+    '<path d="M5 3.5v11l10-5.5z" fill="currentColor"/></svg>';
+  const ICON_PAUSE =
+    '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">' +
+    '<rect x="4" y="3.5" width="3.2" height="11" fill="currentColor"/>' +
+    '<rect x="10.8" y="3.5" width="3.2" height="11" fill="currentColor"/></svg>';
+
+  function updatePlayIcon() {
+    playBtn.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
+  }
+
+  playBtn.addEventListener('click', function () {
+    playing = !playing;
+    lastFrame = 0;
+    updatePlayIcon();
+    render();
+  });
+
+  // ── 进度条拖动 seek ──
+  function seekFromClientX(clientX) {
+    const r = bar.getBoundingClientRect();
+    const p = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    clock = p * SONG_MS;
+    lastActive = -1;
+    render();
+    scrollToActive(activeIndexAt(clock));
+    lastActive = activeIndexAt(clock);
+  }
+
+  function onDown(e) {
+    dragging = true;
+    bar.classList.add('dragging');
+    track.style.transition = 'none';
+    seekFromClientX(e.clientX);
+    e.preventDefault();
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    seekFromClientX(e.clientX);
+  }
+  function onUp() {
+    if (!dragging) return;
+    dragging = false;
+    bar.classList.remove('dragging');
+    lastFrame = 0;
+  }
+
+  bar.addEventListener('pointerdown', onDown);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
+
+  // ── 超长句：nowrap + 字号收缩 ──
+  function fitLines() {
+    const maxW = viewport.clientWidth - 32;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      let size = 18;
+      row.dim.style.fontSize = size + 'px';
+      row.lit.style.fontSize = size + 'px';
+      while (row.dim.scrollWidth > maxW && size > 11) {
+        size -= 1;
+        row.dim.style.fontSize = size + 'px';
+        row.lit.style.fontSize = size + 'px';
+      }
+    }
+    lastActive = -1;
+    render();
+    scrollToActive(activeIndexAt(clock));
+    lastActive = activeIndexAt(clock);
+  }
+
+  window.addEventListener('resize', fitLines);
+
+  // ── 启动 ──
+  updatePlayIcon();
+  fitLines();
+  render();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

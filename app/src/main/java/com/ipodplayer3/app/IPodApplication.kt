@@ -16,14 +16,10 @@ class IPodApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        instance = this
         musicRepository = MusicRepository(this)
         playlistStore = PlaylistStore(this)
         playerController = PlayerController(this)
-    }
-
-    companion object {
-        lateinit var instance: IPodApplication
-            private set
+        com.ipodplayer3.app.ui.device.ClickSound.init(this)
+        com.ipodplayer3.app.ui.device.Haptic.init(this)
     }
 }

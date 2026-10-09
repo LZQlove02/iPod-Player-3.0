@@ -10,10 +10,10 @@
 | 技术 | Kotlin · Jetpack Compose · Media3 |
 | 形态 | 完整机身（上 LCD + 下 Click Wheel） |
 | 曲源 | 仅本地 MediaStore 音乐 |
-| 配色 | **银色默认**，可切换黑色 / U2 黑红 |
-| 歌词 | 音频旁同名 `.lrc`，随进度滚动 |
-| 播放列表 | 本地可编辑（JSON） |
-| 其它 | Cover Flow 3D · 均衡器预设 · 通知栏控制 · 中/英界面 |
+| 配色 | **银色默认**，可切换黑色 / U2 黑红（配色集中在 `ui/theme/Theme.kt`） |
+| 歌词 | 音频旁同名 `.lrc`（UTF-8 / GBK / UTF-16 自动识别，支持 `[offset:]`） |
+| 播放列表 | 本地 JSON，可新建 / 加歌 / 移除歌曲 / 重命名 / 删除 |
+| 其它 | Cover Flow 3D · 10 段均衡器（曲线可保存） · 通知栏控制 · 中/英界面 |
 
 ## 用 Android Studio 打开
 
@@ -21,40 +21,71 @@
 2. 等待 Gradle Sync（首次会拉依赖）
 3. 连接手机（开启 USB 调试）→ Run
 
-命令行编译：
+命令行编译（`JAVA_HOME` 必须指向**完整 JDK**，不是 JRE）：
 
 ```bat
-gradlew.bat :app:assembleDebug
+gradlew.bat :app:assembleDebug      :: 产物 app\build\outputs\apk\debug\app-debug.apk
+gradlew.bat :app:assembleRelease    :: 产物 app\build\outputs\apk\release\app-release.apk（R8 混淆 + 资源压缩）
+gradlew.bat :app:testDebugUnitTest  :: 单元测试
 ```
 
-产物：`app\build\outputs\apk\debug\app-debug.apk`
+> - 项目路径含中文，已在 `gradle.properties` 中设置 `android.overridePathCheck=true`。
+> - `gradle.properties` 里**不要**加 `-Dfile.encoding=UTF-8`：守护进程的默认编码决定
+>   Gradle 写「@argfile」（命令行过长时的参数文件）用哪种编码，而 JVM 读 @argfile 用
+>   系统本地编码。一旦写成 UTF-8，含中文的路径（用户目录 / 项目路径）在参数文件里就会
+>   乱码，单元测试 worker 会直接 `ClassNotFoundException: GradleWorkerMain`。
+> - release 默认用 debug 签名（保证能装）。要正式签名就在根目录放 `keystore.properties`
+>   （`storeFile` / `storePassword` / `keyAlias` / `keyPassword`，已在 `.gitignore` 中）：
 
-> 项目路径含中文时，已在 `gradle.properties` 中设置 `android.overridePathCheck=true`。
+```properties
+storeFile=../ipod-release.jks
+storePassword=******
+keyAlias=ipod
+keyPassword=******
+```
 
 ## 圆盘手势
 
 | 操作 | 行为 |
 |---|---|
-| 绕圈滑动 | 列表滚动 / Cover Flow 翻页 / 正在播放快进退 |
-| 中心 | 确认 / 翻开 Cover Flow |
-| MENU | 返回 |
-| ▶❙❙ | 播放/暂停 |
+| 绕圈滑动 | 列表滚动 / Cover Flow 翻页；正在播放/歌词页无极快进退（约 22s/圈） |
+| 中心 | 确认 / 翻开 Cover Flow；播放列表详情页顶部四行是「添加歌曲 / 移除歌曲 / 重命名 / 删除」 |
+| MENU（或系统返回键） | 返回 |
+| ▶ + 双竖线 | 播放/暂停 |
 | ⏭ / ⏮ | 切歌（在列表中则滚动） |
+
+> 读屏（TalkBack）可用：滚轮挂了 5 个自定义操作（返回 / 播放暂停 / 上一项 / 下一项 / 确认）。
+
+## 播放列表
+
+音乐 → **加入播放列表** → 选歌 → 选列表（第 0 项「新建并加入」）。
+进入某个列表后，顶部四行分别是「添加歌曲」「从列表移除歌曲」「重命名播放列表」「删除播放列表」；「添加歌曲」会打开全曲库选歌页，每确认一次加入一首，可连续添加。
 
 ## 歌词
 
 把 `Song Title.lrc` 放在音频同目录（或 `lyrics/` 子目录），在「正在播放」按确认进入歌词页。
+Android 10+ 的分区存储读不到 `.lrc`（它不是媒体类型），需要在「设置 → 歌词文件夹」里授予一个目录。
 
 ## 目录结构
 
 ```text
 app/src/main/java/com/ipodplayer3/app/
-  data/     模型、曲库、歌词、播放列表、Media3 播放服务
-  ui/       主题、圆盘、机身、Cover Flow、设置、文案
+  data/     模型、曲库（含纯计算 LibraryAggregator）、歌词、播放列表、Media3 播放服务 + 10 段 EQ
+  ui/       主题、圆盘、机身、Cover Flow、设置、文案（从 res/values 取）
   MainActivity.kt
+app/src/main/res/values/strings.xml     中文（默认）
+app/src/main/res/values-en/strings.xml  英文
+app/src/test/                           单元测试（JVM）
 ```
 
 ## 说明
 
 - 自研实现；交互参考公开项目（MIT）的圆盘思路，**未拷贝** BSD/AGPL 源码。
-- 均衡器为预设 + 低音/高音简单调节（设备音效能力可能有差异）。
+- 均衡器是自实现的 10 段 GraphicEQ（Media3 AudioProcessor），预设 + 逐段调节，曲线随设置保存；
+  平台 `Equalizer/BassBoost/Virtualizer` 仅为兼容性挂载且保持关闭，避免二次染色。
+- 已知限制：内置存储 + SD 卡同时有音乐时，播放 URI 仍按主卷拼装（`_ID` 只在单卷内唯一）；
+  双卷设备需要按 `VOLUME_NAME` 逐行拼 URI，见 `优化清单.md`。
+
+## 开源协议
+
+[MIT](LICENSE) © LZQlove02
