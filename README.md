@@ -32,7 +32,10 @@
 
 到 [Releases](https://github.com/LZQlove02/iPod-Player-3.0/releases/latest) 下载
 `iPod-Player-3.0-v3.0.0-release.apk`（Android 8.0+），允许「未知来源」后安装即可。
-APK 为 debug 签名（仓库不含 release 密钥），仅供自测；SHA256 见对应 Release 说明。
+
+发布包由**独立 release 密钥**签名（证书 `CN=LZQlove02, OU=iPodPlayer3`，指纹见 Release 说明），
+**不是** debug 签名，可直接覆盖升级；SHA256 也写在对应 Release 说明里。
+如果你装过更早的 debug 签名包，签名不同**无法覆盖**，先卸载再装。
 
 ## 用 Android Studio 打开
 
@@ -53,8 +56,9 @@ gradlew.bat :app:testDebugUnitTest  :: 单元测试
 >   Gradle 写「@argfile」（命令行过长时的参数文件）用哪种编码，而 JVM 读 @argfile 用
 >   系统本地编码。一旦写成 UTF-8，含中文的路径（用户目录 / 项目路径）在参数文件里就会
 >   乱码，单元测试 worker 会直接 `ClassNotFoundException: GradleWorkerMain`。
-> - release 默认用 debug 签名（保证能装）。要正式签名就在根目录放 `keystore.properties`
->   （`storeFile` / `storePassword` / `keyAlias` / `keyPassword`，已在 `.gitignore` 中）：
+> - release 签名：仓库**不含**密钥；根目录没有 `keystore.properties` 时自动回退到 debug 签名（保证能装）。
+>   正式签名请把密钥库放在**仓库外**（下例 `../ipod-release.jks`，天然不会被 git 跟踪），再在根目录写
+>   `keystore.properties`（`storeFile` / `storePassword` / `keyAlias` / `keyPassword`，已被 `.gitignore` 忽略）：
 
 ```properties
 storeFile=../ipod-release.jks
