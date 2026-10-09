@@ -1,6 +1,7 @@
 # iPod 播放器 3.0 · iPod Player 3.0
 
 [![License](https://img.shields.io/github/license/LZQlove02/iPod-Player-3.0)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/LZQlove02/iPod-Player-3.0?label=download)](https://github.com/LZQlove02/iPod-Player-3.0/releases/latest)
 ![Platform](https://img.shields.io/badge/platform-Android%208.0%2B%20(API%2026)-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-BOM%202024.10.01-4285F4?logo=android&logoColor=white)
@@ -26,6 +27,12 @@
 | 歌词 | 音频旁同名 `.lrc`（UTF-8 / GBK / UTF-16 自动识别，支持 `[offset:]`） |
 | 播放列表 | 本地 JSON，可新建 / 加歌 / 移除歌曲 / 重命名 / 删除 |
 | 其它 | Cover Flow 3D · 10 段均衡器（曲线可保存） · 通知栏控制 · 中/英界面 |
+
+## 下载安装
+
+到 [Releases](https://github.com/LZQlove02/iPod-Player-3.0/releases/latest) 下载
+`iPod-Player-3.0-v3.0.0-release.apk`（Android 8.0+），允许「未知来源」后安装即可。
+APK 为 debug 签名（仓库不含 release 密钥），仅供自测；SHA256 见对应 Release 说明。
 
 ## 用 Android Studio 打开
 
