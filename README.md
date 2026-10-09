@@ -1,6 +1,18 @@
-# iPod 播放器 3.0
+# iPod 播放器 3.0 · iPod Player 3.0
+
+[![License](https://img.shields.io/github/license/LZQlove02/iPod-Player-3.0)](LICENSE)
+![Platform](https://img.shields.io/badge/platform-Android%208.0%2B%20(API%2026)-3DDC84?logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)
+![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-BOM%202024.10.01-4285F4?logo=android&logoColor=white)
+![Media3](https://img.shields.io/badge/Media3-1.4.1-2D2D2D)
+![AGP](https://img.shields.io/badge/Gradle-AGP%208.7.3-green?logo=gradle&logoColor=white)
 
 个人自用 · Android 本地音乐 · iPod Classic 6/7 交互仿妆。
+
+> **English** — A personal-use **Android local music player** that recreates the iPod Classic
+> 6th/7th-gen experience: full device chrome (LCD + Click Wheel), Cover Flow 3D, gesture-driven
+> wheel, 10-band graphic EQ with savable curves, LRC lyrics, local JSON playlists, notification
+> controls and a 中/EN interface. Kotlin · Jetpack Compose · Media3, MIT licensed.
 
 ## 需求摘要
 
@@ -76,7 +88,11 @@ app/src/main/java/com/ipodplayer3/app/
 app/src/main/res/values/strings.xml     中文（默认）
 app/src/main/res/values-en/strings.xml  英文
 app/src/test/                           单元测试（JVM）
+docs/                                   静态预览页 index.html / coverflow.html、优化清单.md
 ```
+
+> `docs/index.html` 与 `docs/coverflow.html` 是纯静态界面预览，浏览器直接打开即可看机身与 Cover Flow 效果，
+> 不需要装 Android Studio。
 
 ## 说明
 
@@ -84,7 +100,7 @@ app/src/test/                           单元测试（JVM）
 - 均衡器是自实现的 10 段 GraphicEQ（Media3 AudioProcessor），预设 + 逐段调节，曲线随设置保存；
   平台 `Equalizer/BassBoost/Virtualizer` 仅为兼容性挂载且保持关闭，避免二次染色。
 - 已知限制：内置存储 + SD 卡同时有音乐时，播放 URI 仍按主卷拼装（`_ID` 只在单卷内唯一）；
-  双卷设备需要按 `VOLUME_NAME` 逐行拼 URI，见 `优化清单.md`。
+  双卷设备需要按 `VOLUME_NAME` 逐行拼 URI，见 [docs/优化清单.md](docs/优化清单.md)。
 
 ## 开源协议
 
