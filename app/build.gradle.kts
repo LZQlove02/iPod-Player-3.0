@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.io.File
 import java.util.Properties
 
 plugins {
@@ -143,4 +144,85 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 证书轮换（APK Signing Certificate Rotation）
+//
+// AGP 只会用一把钥匙签整包，导致「装过旧签名包的设备」无法覆盖升级。打包后用
+// apksigner 附加 lineage，让同一个包在不同平台呈现不同身份：
+//   v2 / v3（SDK 24–32）→ 旧证书，与老设备上已安装的包一致，**直接覆盖**；
+//   v3.1（Android 13+） → 正式证书，lineage 里含旧证书，**轮换**到正式证书，
+//                          配合 lineage 的 installed-data 能力，应用数据不丢。
+//
+// signing-lineage.bin 只含证书链（公开数据，无私钥），随仓库提交；
+// 缺 lineage 或 keystore.properties（克隆仓库 / 没有密钥的 CI）时自动跳过。
+// ─────────────────────────────────────────────────────────────────────────────
+val lineageBin = rootProject.file("signing-lineage.bin")
+val ksPropsFile = rootProject.file("keystore.properties")
+
+tasks.matching { it.name == "packageDebug" || it.name == "packageRelease" }.configureEach {
+    val variant = if (name.endsWith("Debug")) "debug" else "release"
+    doLast {
+        if (!lineageBin.exists() || !ksPropsFile.exists()) {
+            logger.info("[lineage] 跳过：缺少 ${lineageBin.name} 或 keystore.properties")
+            return@doLast
+        }
+        try {
+            val apk = File(layout.buildDirectory.get().asFile, "outputs/apk/$variant/app-$variant.apk")
+            if (!apk.exists()) error("找不到产物 $apk")
+
+            val props = Properties().apply { ksPropsFile.inputStream().use { load(it) } }
+            fun req(key: String) = props.getProperty(key) ?: error("keystore.properties 缺少 $key")
+            val storeFile = rootProject.file(req("storeFile"))
+            if (!storeFile.exists()) error("密钥库不存在：$storeFile")
+
+            // 旧证书：Android 调试密钥（AGP 自动初始化的 debug 签名配置）
+            val debugCfg = android.signingConfigs.findByName("debug")
+            val debugStore = debugCfg?.storeFile ?: File(System.getProperty("user.home"), ".android/debug.keystore")
+            val debugAlias = debugCfg?.keyAlias ?: "androiddebugkey"
+            val debugStorePass = debugCfg?.storePassword ?: "android"
+            val debugKeyPass = debugCfg?.keyPassword ?: "android"
+            if (!debugStore.exists()) error("找不到调试密钥库 $debugStore")
+
+            // Android SDK / build-tools / apksigner
+            val sdkProps = Properties().apply {
+                val lp = rootProject.file("local.properties")
+                if (lp.exists()) lp.inputStream().use { load(it) }
+            }
+            val sdkDir = File(
+                sdkProps.getProperty("sdk.dir")
+                    ?: System.getenv("ANDROID_SDK_ROOT")
+                    ?: System.getenv("ANDROID_HOME")
+                    ?: error("找不到 Android SDK（local.properties 的 sdk.dir 或 ANDROID_SDK_ROOT）")
+            )
+            val buildTools = File(sdkDir, "build-tools")
+                .listFiles()?.filter { it.isDirectory }
+                ?.maxByOrNull { it.name }
+                ?: error("SDK 下没有 build-tools 目录")
+            val isWindows = System.getProperty("os.name").lowercase().contains("windows")
+            val apksigner = File(buildTools, if (isWindows) "apksigner.bat" else "apksigner")
+            if (!apksigner.exists()) error("找不到 ${apksigner.name}")
+
+            val args = mutableListOf(
+                "sign",
+                "--lineage", lineageBin.absolutePath,
+                "--ks", debugStore.absolutePath, "--ks-pass", "pass:$debugStorePass",
+                "--ks-key-alias", debugAlias, "--key-pass", "pass:$debugKeyPass",
+                "--next-signer",
+                "--ks", storeFile.absolutePath, "--ks-pass", "pass:${req("storePassword")}",
+                "--ks-key-alias", req("keyAlias"), "--key-pass", "pass:${req("keyPassword")}",
+                apk.absolutePath
+            )
+            val cmd = if (isWindows) listOf("cmd.exe", "/c", apksigner.absolutePath) + args
+                      else listOf(apksigner.absolutePath) + args
+            val process = ProcessBuilder(cmd).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader().readText()
+            val code = process.waitFor()
+            if (code != 0) error("apksigner 退出码 $code：${output.trim().lines().lastOrNull() ?: ""}")
+            logger.lifecycle("[lineage] $variant 已附加轮换链 → ${apk.name}")
+        } catch (e: Exception) {
+            logger.warn("[lineage] 附加轮换链失败，保留原签名（覆盖升级可能受影响）：${e.message}")
+        }
+    }
 }

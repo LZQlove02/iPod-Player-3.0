@@ -33,9 +33,10 @@
 到 [Releases](https://github.com/LZQlove02/iPod-Player-3.0/releases/latest) 下载
 `iPod-Player-3.0-v3.0.0-release.apk`（Android 8.0+），允许「未知来源」后安装即可。
 
-发布包由**独立 release 密钥**签名（证书 `CN=LZQlove02, OU=iPodPlayer3`，指纹见 Release 说明），
-**不是** debug 签名，可直接覆盖升级；SHA256 也写在对应 Release 说明里。
-如果你装过更早的 debug 签名包，签名不同**无法覆盖**，先卸载再装。
+发布包带**签名证书轮换链**（`signing-lineage.bin`）：Android 13+ 上生效的是
+`CN=LZQlove02, OU=iPodPlayer3` 正式证书，Android 7–12 上继续用旧证书校验，
+所以**旧版本可以直接覆盖升级，无需卸载，播放列表 / 设置 / EQ 曲线都不丢**。
+具体证书指纹与 SHA256 写在对应 Release 说明里。
 
 ## 用 Android Studio 打开
 
@@ -66,6 +67,11 @@ storePassword=******
 keyAlias=ipod
 keyPassword=******
 ```
+
+> - **签名证书轮换**：`packageDebug` / `packageRelease` 之后会自动执行 `app/build.gradle.kts` 末尾的
+>   `[lineage]` 钩子，用仓库里的 `signing-lineage.bin` 重新签署产物 —— v2 / v3 用旧证书、v3.1 用正式证书，
+>   于是老装机能直接覆盖升级、新装机轮换到正式证书。缺少 lineage 或 `keystore.properties` 时自动跳过，
+>   不影响克隆仓库的正常构建。
 
 ## 圆盘手势
 
